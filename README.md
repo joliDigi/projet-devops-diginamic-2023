@@ -16,6 +16,7 @@
   - [Dockerfile-backup](#my_diginamic_projectdockerfile-backup)
 - [Étapes avec docker compose](#étapes-avec-docker-compose)
 - [Les scripts](#les-scripts)
+  - [Le fichier de configuration apache](#le-fichier-de-configuration-apache)
   - [L'installation au choix d'un CMS](#linstallation-au-choix-dun-cms)
   - [Le backup de la bdd](#le-backup-de-la-bdd)
   - [Notes sur les scripts](#notes-sur-les-scripts)
@@ -116,7 +117,9 @@ github -> seulement pour le code source (j'imagine)
 
 ```dockerfile
 FROM bitnami/php-fpm
-FROM php:fpm
+# FROM php:fpm
+
+
 ```
 
 <!-- ### /my_diginamic_project/dockerfile/httpd/dockerfile -->
@@ -124,9 +127,41 @@ FROM php:fpm
 ### /my_diginamic_project/Dockerfile-httpd
 
 ```dockerfile
-FROM httpd
+# FROM httpd
 
-COPY sth_from_php -> /usr/local/apache2/htdocs/
+# COPY sth_from_php -> /usr/local/apache2/htdocs/
+
+FROM bitnami/apache:latest
+
+VOLUME ./apache-vhost/myapp.conf:vhosts/myapp.conf:ro
+VOLUME .:/app
+
+CMD ["./scripts/hi.sh"] # le script ne se lance pas sur le volume d'hôte donc comment est ce que je dois automatiser ça moi ?!?!!!!!
+```
+
+[Volume in dockerfile vs volume in docker-compose](https://stackoverflow.com/a/40568482)
+
+TEST
+
+```yml
+version: "2"
+
+services:
+  php:
+    image: bitnami/php-fpm:latest
+    ports:
+      - 9000:9000
+    volumes:
+      - .:/app
+  apache:
+    image: bitnami/apache:latest
+    ports:
+      - 80:8080
+    volumes:
+      - ./apache-vhost/myapp.conf:/vhosts/myapp.conf:ro
+      - .:/app
+    depends_on:
+      - php
 ```
 
 <!-- ### /my_diginamic_project/dockerfile/backup/dockerfile -->
@@ -204,12 +239,36 @@ A partir du dossier projet /my_diginamic_project, lance `docker compose up`
 
 ## Les scripts
 
+### Le fichier de configuration apache
+
+/my_diginamic_project/apache-vhost/myapp.conf
+
+```sh
+LoadModule proxy_fcgi_module modules/mod_proxy_fcgi.so
+<VirtualHost *:8080>
+  DocumentRoot "/app"
+  ProxyPassMatch ^/(.*\.php(/.*)?)$ fcgi://php:9000/app/$1
+  <Directory "/app">
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+    DirectoryIndex index.php
+  </Directory>
+</VirtualHost>
+```
+
 ### L'installation au choix d'un CMS
 
 (apparemment httpd est lancé par défaut dans debian donc /bin/bash)
 
 ```sh
 #! /bin/bash
+
+echo "WHAT IS YOUR NAME"
+
+read userinput
+
+echo "HELLO, NICE TO MEET YOU $userinput"
 ```
 
 ### Le backup de la bdd
@@ -275,6 +334,7 @@ Docker official sources:
 
 Other sources:
 
+- [bitnami apache + fpm](https://docs.bitnami.com/tutorials/develop-http-api-php-containers/)
 - [appache + fpm](https://www.bejean.eu/2020/11/18/apache-et-php-fpm-dans-des-conteneurs-separes)
 - [mariadb dumps](https://mariadb.com/kb/en/mariadb-dumpmysqldump/)
 - [dumps & crontab](https://www.kiloroot.com/mysql-database-backup-shell-scripts-that-can-be-run-as-cron-jobs/)
