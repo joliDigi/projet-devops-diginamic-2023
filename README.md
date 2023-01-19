@@ -116,10 +116,17 @@ github -> seulement pour le code source (j'imagine)
 ### /my_diginamic_project/Dockerfile-phpfpm
 
 ```dockerfile
-FROM bitnami/php-fpm
 # FROM php:fpm
 
+FROM bitnami/php-fpm:latest
 
+VOLUME .:/app
+COPY . .
+
+RUN echo "$(ls) in this directory"
+
+RUN echo "will you finally work ?"
+RUN ./scripts/wpinstall.sh
 ```
 
 <!-- ### /my_diginamic_project/dockerfile/httpd/dockerfile -->
@@ -259,6 +266,8 @@ LoadModule proxy_fcgi_module modules/mod_proxy_fcgi.so
 
 ### L'installation au choix d'un CMS
 
+Je ne sais toujours pas où lancé ça !!
+
 (apparemment httpd est lancé par défaut dans debian donc /bin/bash)
 
 ```sh
@@ -269,6 +278,12 @@ echo "WHAT IS YOUR NAME"
 read userinput
 
 echo "HELLO, NICE TO MEET YOU $userinput"
+
+mv index.php src/
+apt install wget unzip
+wget https://wordpress.org/latest.zip
+unzip latest.zip
+rm latest.zip
 ```
 
 ### Le backup de la bdd
