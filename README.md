@@ -4,20 +4,18 @@
 
 - [Énoncé](#énoncé)
 - [Ébauche](#ébauche)
-  - [Arborescence des dossiers et fichiers](#arborescence-des-dossiers-et-fichiers)
-  - [Definition des chemins](#definition-des-chemins)
   - [Notes sur le travail d'ébauche](#notes-sur-le-travail-débauche)
 
 <hr>
 
 - [Les dockerfiles](#les-dockerfiles)
-  - [Dockerfile-phpfpm](#my_diginamic_projectdockerfile-phpfpm)
-  - [Dockerfile-httpd](#my_diginamic_projectdockerfile-httpd)
-  - [Dockerfile-backup](#my_diginamic_projectdockerfile-backup)
+  - [Dockerfile install](#my_diginamic_projectwpfolder_for_dockerfileinstalldockerfile)
+  - [Dockerfile backup](#my_diginamic_projectwpfolder_for_dockerfilebackupdockerfile)
 - [Étapes avec docker compose](#étapes-avec-docker-compose)
 - [Les scripts](#les-scripts)
   - [Le fichier de configuration apache](#le-fichier-de-configuration-apache)
   - [L'installation au choix d'un CMS](#linstallation-au-choix-dun-cms)
+  - [L'installation de WordPress](#linstallation-de-wordpress)
   - [Le backup de la bdd](#le-backup-de-la-bdd)
   - [Notes sur les scripts](#notes-sur-les-scripts)
 
@@ -63,11 +61,13 @@ docker compose -> script de choix CMS sera dans le dockerfile de httpd ?? (vu qu
 
 -> tous les containers sur le même réseau
 
-check pour connection SSH
+check pour connection SSH -> RESTE A FAIRE
 
-github -> seulement pour le code source (j'imagine)
+github -> seulement pour le code source (j'imagine) -> RESTE A FAIRE
 
 ### **Arborescence des dossiers et fichiers**
+
+/!\ CETTE PARTIE N'EST PLUS A JOUR LES DOSSIERS ONT CHANGES DE NOMS ET DE PLACE /!\
 
 (2 versions pour les dockerfile -> n'en choisir qu'une évidement -> celle qui marchera)
 
@@ -91,6 +91,8 @@ github -> seulement pour le code source (j'imagine)
 
 ### **Definition des chemins**
 
+/!\ CETTE PARTIE N'EST PLUS A JOUR LES DOSSIERS ONT CHANGES DE NOMS ET DE PLACE /!\
+
 - Hôte
   - C://Users/[username]/my_diginamic_project
 - WSL
@@ -111,74 +113,25 @@ github -> seulement pour le code source (j'imagine)
 
 ## Les dockerfiles
 
-<!-- ### /my_diginamic_project/dockerfile/phpfpm/dockerfile -->
-
-### /my_diginamic_project/Dockerfile-phpfpm
+### /my_diginamic_project/wp/folder_for_dockerfile/install/dockerfile
 
 ```dockerfile
-# FROM php:fpm
+FROM alpine:latest
 
-FROM bitnami/php-fpm:latest
+WORKDIR /app
 
-VOLUME .:/app
+# de la machine vers le conteneur
 COPY . .
 
-RUN echo "$(ls) in this directory"
-
-RUN echo "will you finally work ?"
-RUN ./scripts/wpinstall.sh
-```
-
-<!-- ### /my_diginamic_project/dockerfile/httpd/dockerfile -->
-
-### /my_diginamic_project/Dockerfile-httpd
-
-```dockerfile
-# FROM httpd
-
-# COPY sth_from_php -> /usr/local/apache2/htdocs/
-
-FROM bitnami/apache:latest
-
-VOLUME ./apache-vhost/myapp.conf:vhosts/myapp.conf:ro
-VOLUME .:/app
-
-CMD ["./scripts/hi.sh"] # le script ne se lance pas sur le volume d'hôte donc comment est ce que je dois automatiser ça moi ?!?!!!!!
+CMD ["./install.sh"]
 ```
 
 [Volume in dockerfile vs volume in docker-compose](https://stackoverflow.com/a/40568482)
 
-TEST
-
-```yml
-version: "2"
-
-services:
-  php:
-    image: bitnami/php-fpm:latest
-    ports:
-      - 9000:9000
-    volumes:
-      - .:/app
-  apache:
-    image: bitnami/apache:latest
-    ports:
-      - 80:8080
-    volumes:
-      - ./apache-vhost/myapp.conf:/vhosts/myapp.conf:ro
-      - .:/app
-    depends_on:
-      - php
-```
-
-<!-- ### /my_diginamic_project/dockerfile/backup/dockerfile -->
-
-### /my_diginamic_project/Dockerfile-backup
+### /my_diginamic_project/wp/folder_for_dockerfile/backup/dockerfile
 
 ```dockerfile
-FROM alpine
-
-COPY ??? /my_diginamic_project
+FROM alpine:latest
 
 # set up of a daily task which runs the backup script
 RUN echo "0 0 * * * ./my_diginamic_project/scripts/backup.sh" >> /var/spool/cron/crontabs/root
@@ -186,10 +139,13 @@ RUN echo "0 0 * * * ./my_diginamic_project/scripts/backup.sh" >> /var/spool/cron
 
 ## Étapes avec docker compose
 
-/my_diginamic_project/docker-compose.yml
+Pour WordPress
+
+/my_diginamic_project/wp/docker-compose.yml
 
 ```yml
-version: "3.3"
+version: '2'
+
 networks:
   my_docker_network:
     driver: bridge
@@ -199,34 +155,44 @@ volumes:
 
 services:
   my_phpfpm_container:
-    build:
-      # context: ./dockerfile/phpfpm
-      context: .
-      dockerfile: Dockerfile-phpfpm
+    image: bitnami/php-fpm:latest
+    ports:
+      - 9000:9000
+    volumes:
+      - .:/app
     networks:
       - my_docker_network
 
-  my_httpd_container:
-    build:
-      # context: ./dockerfile/httpd
-      context: .
-      dockerfile: Dockerfile-httpd
-    ports: "8080:80"
+  my_apache_container:
+    image: bitnami/apache:latest
+    ports:
+      - 80:8080
     volumes:
-      - C:\Users\[username]\my_diginamic_project:/usr/local/apache2/htdocs/
+      - ./apache-vhost/myapp.conf:/vhosts/myapp.conf:ro
+      - .:/app
     networks:
       - my_docker_network
-    # Compose implementations MUST create services in dependency order
-    # my_phpfpm_container before my_httpd_container
     depends_on:
       - my_phpfpm_container
+
+  my_alpine_container:
+    volumes:
+      - .:/app
+    build:
+      context: ./folder_for_dockerfile/alpine
+    networks:
+      - my_docker_network
+    depends_on:
+      - my_phpfpm_container
+      - my_apache_container
 
   my_mariadb_container:
     image: mariadb:latest
     environment:
-      - MARIADB_USER=jolidigi
-      - MARIADB_PASSWORD=mariaP4$$w0rDdb
       - MARIADB_DATABASE=cms_db
+      - MARIADB_USER=jolidigi
+      - MARIADB_PASSWORD=mypassmot
+      - MARIADB_ROOT_PASSWORD=admin
     volumes:
       - my_db_volume:/var/lib/mysql
     networks:
@@ -234,15 +200,21 @@ services:
 
   my_backups_container:
     build:
-      # context: ./dockerfile/backup
-      context: .
-      dockerfile: Dockerfile-backup
+      context: ./folder_for_dockerfile/backup
     networks:
       - my_docker_network
     # Maybe a depends_on: - my_mariadb_container
 ```
 
-A partir du dossier projet /my_diginamic_project, lance `docker compose up`
+Pour PrestaShop
+
+/!\ CE FICHIER EST IDENTIQUE A CELUI DE WP /!\
+
+/my_diginamic_project/ps/docker-compose.yml
+
+```yml
+
+```
 
 ## Les scripts
 
@@ -266,21 +238,41 @@ LoadModule proxy_fcgi_module modules/mod_proxy_fcgi.so
 
 ### L'installation au choix d'un CMS
 
-Je ne sais toujours pas où lancé ça !!
-
-(apparemment httpd est lancé par défaut dans debian donc /bin/bash)
+/my_diginamic_project/init_install.sh
 
 ```sh
 #! /bin/bash
 
-echo "WHAT IS YOUR NAME"
+echo "Which CMS do you hate the least WordPress [wp] or PrestaShop [ps] ?"
+while read choice; do
+    if [ $choice = "wp" ]; then
+        cd wp
+        break
+    fi
+    if [ $choice = "ps" ]; then
+        cd ps
+        break
+    fi
+    echo -e "[wp] for WordPress\n[ps] for PrestaShop"
+done
 
-read userinput
+echo -e "You are now the unfortunate owner of a $choice project.\nI feel for you !"
 
-echo "HELLO, NICE TO MEET YOU $userinput"
+docker compose up
+```
 
-mv index.php src/
-apt install wget unzip
+### L'installation de WordPress
+
+/my_diginamic_project/wp/install.sh
+
+/my_diginamic_project/ps/install.sh
+
+```sh
+#! /bin/sh
+
+apk update && apk upgrade
+apk add unzip wget
+
 wget https://wordpress.org/latest.zip
 unzip latest.zip
 rm latest.zip
